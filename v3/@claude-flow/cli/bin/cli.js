@@ -45,14 +45,42 @@ const _STDERR_REDIRECT_PREFIXES = [
   '🚀 Initializing ',
   '✅ ',
 ];
+// agentdb's EmbeddingService.initialize() prints this cluster when
+// `@xenova/transformers` fails to load (commonly: macOS arm64 without
+// `brew install vips` — sharp can't resolve libvips). The warnings claim
+// agentdb is "falling back to mock embeddings", but memory-bridge.ts's
+// rescueAgentdbEmbedder swaps the embedder over to ruvector ONNX in
+// that exact case, so the user is NOT on mocks. The warnings are stale
+// and misleading; drop them. Match anchored to exact upstream prefixes
+// (agentdb/dist/controllers/EmbeddingService.js:48–56) so unrelated
+// warnings always flow through.
+const _AGENTDB_MOCK_FALLBACK_DROP_PREFIXES = [
+  'Transformers.js initialization failed:',
+  '   Falling back to mock embeddings for testing',
+  '   This is normal if:',
+  '     - Running offline/without internet access',
+  '     - Model not yet downloaded',
+  '     - Network connectivity issues',
+  '   To use real embeddings:',
+  '     - Ensure internet connectivity for first',
+  '     - Or pre-download: npx agentdb',
+];
 const _shouldRedirectToStderr = (msg) => {
   for (const prefix of _STDERR_REDIRECT_PREFIXES) {
     if (msg.startsWith(prefix)) return true;
   }
   return false;
 };
+const _isAgentdbMockFallbackNoise = (msg) => {
+  for (const prefix of _AGENTDB_MOCK_FALLBACK_DROP_PREFIXES) {
+    if (msg.startsWith(prefix)) return true;
+  }
+  return false;
+};
 console.warn = (...args) => {
-  if (_isCosmeticAgentdbPatchNoise(String(args[0] ?? ''))) return;
+  const head = String(args[0] ?? '');
+  if (_isCosmeticAgentdbPatchNoise(head)) return;
+  if (_isAgentdbMockFallbackNoise(head)) return;
   _origWarn.apply(console, args);
 };
 console.log = (...args) => {
