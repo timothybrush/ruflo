@@ -260,6 +260,23 @@ env:
   PNPM_VERSION: '8'
 
 jobs:
+  # #2267 + #2257 regression guards — fast, no install, run first so any
+  # YAML or router regression is caught at PR-time, not at scheduled cron.
+  static-regression-guards:
+    name: Static regression guards (#2267 YAML + #2257 router)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      # js-yaml + tsx are needed by the smokes — install only those.
+      - name: Install smoke deps
+        run: npm install --no-save --no-package-lock js-yaml tsx
+      - name: "#2267 — every .github/workflows/*.yml must parse"
+        run: node scripts/smoke-workflows-yaml.mjs
+      - name: "#2257 — router patterns must be word-boundary-anchored"
+        run: node --import tsx scripts/smoke-router-regex.mjs
+
   test:
     name: Test V3 Packages
     runs-on: ubuntu-latest
